@@ -65,7 +65,7 @@ jobs:
         with:
           template-file: exercise-toolkit/markdown-templates/step-feedback/step-results-table.md
           template-vars: |
-            step_number: 2-3
+            step_number: "2-3"
             passed: ${{ steps.check_testing_guidelines.outcome == 'success' && steps.check_copilot_instructions.outcome == 'success' }}
             results_table:
               - description: "The file 'testing-guidelines.md' should exist under `docs/` folder and describe the testing requirements."
@@ -96,7 +96,7 @@ jobs:
         with:
           template-file: exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md
           template-vars: |
-            next_step_number: 2-4
+            next_step_number: "2-4"
 
       - name: Update comment - step finished
         run: |
