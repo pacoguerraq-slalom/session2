@@ -219,7 +219,39 @@ This phase depends on all feature behavior being implemented. It is the final re
 | UI quality ready | Frontend accessibility tests and Playwright | Keyboard use, screen readers, focus, contrast, responsive layouts, critical workflows |
 | Release ready | Full test, lint, build, and persistence run | Restart persistence, error recovery, clean dependency graph, repeatability |
 
-## 10. Definition of Done
+## 10. Major Feature Acceptance Criteria
+
+### Task Lifecycle
+
+- **Acceptance criteria:** A user can create a task with a required title, see it in the task list, edit its title, and delete it after confirmation. Invalid titles are rejected with visible feedback.
+- **Testing strategy:** Use backend unit tests for validation, Supertest integration tests for create/update/delete responses and not-found handling, frontend tests for form and dialog behavior, and one Playwright workflow covering the complete lifecycle.
+
+### Completion State
+
+- **Acceptance criteria:** Each task exposes a labeled completion control. Toggling it changes the task between completed and incomplete, persists the state, and communicates the state without relying on color alone.
+- **Testing strategy:** Test boolean validation and PATCH behavior in backend tests, accessible checkbox interaction in frontend tests, and verify the checked state after a page reload in E2E coverage.
+
+### Due Dates and Ordering
+
+- **Acceptance criteria:** A task can have a valid `YYYY-MM-DD` due date or no due date. Tasks with dates appear from nearest to latest, and the documented no-date rule is applied consistently.
+- **Testing strategy:** Unit-test date validation and ordering, integration-test multiple dates and no-date tasks, frontend-test date entry and display, and include ordering in the organization E2E journey.
+
+### Priorities and Filters
+
+- **Acceptance criteria:** Users can assign only High, Medium, or Low priority and filter by priority, completion status, or both. Clearing filters restores the complete sorted list, including a clear no-results state.
+- **Testing strategy:** Test allowed values and combined query parameters through Jest and Supertest, test filter controls and empty states with React Testing Library, and verify a combined filter workflow with Playwright.
+
+### Persistence and Recovery
+
+- **Acceptance criteria:** Tasks and all supported fields remain available after the application or server is reopened. Load and save failures provide visible, actionable feedback and never fail silently.
+- **Testing strategy:** Use a persistence integration test against the file-backed database, frontend tests for failed requests and recovery states, and an E2E reload/reopen workflow.
+
+### UI, Accessibility, and Responsiveness
+
+- **Acceptance criteria:** The interface uses Material Design components, the primary blue/secondary green/neutral gray palette, consistent typography, rounded buttons, visible hover/focus states, semantic labels, keyboard navigation, screen reader names, high contrast, and layouts that work on phone, tablet, and desktop widths without horizontal scrolling.
+- **Testing strategy:** Query frontend behavior by accessible roles and names, test keyboard paths and focus-visible states, perform accessibility and contrast checks, and run the critical Playwright journeys at representative viewport sizes.
+
+## 11. Definition of Done
 
 A feature is complete only when:
 
@@ -232,7 +264,7 @@ A feature is complete only when:
 - No unused code, imports, or dependencies remain from the implementation.
 - The implementation preserves established project patterns and is ready for review.
 
-## 11. Recommended Implementation Sequence
+## 12. Recommended Implementation Sequence
 
 1. Agree on the task schema, API response contract, date format, filter vocabulary, and no-due-date sorting rule.
 2. Introduce file-backed persistence and isolated database setup for tests.
