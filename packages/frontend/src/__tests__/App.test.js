@@ -10,6 +10,7 @@ const initialTasks = [
   { id: 2, title: 'Review notes', completed: true, dueDate: '2026-08-22', priority: 'Low' },
 ];
 let mockTasks = [...initialTasks];
+let lastRequest = null;
 
 const server = setupServer(
   rest.get('/api/tasks', (req, res, ctx) => {
@@ -23,6 +24,7 @@ const server = setupServer(
     return res(ctx.status(200), ctx.json(filteredTasks));
   }),
   rest.post('/api/tasks', (req, res, ctx) => {
+    lastRequest = { method: 'POST', body: req.body };
     const newTask = {
       id: 3,
       title: req.body.title,
@@ -38,14 +40,21 @@ const server = setupServer(
   }),
   rest.patch('/api/tasks/:id', (req, res, ctx) => {
     const task = mockTasks.find((item) => item.id === Number(req.params.id));
+    lastRequest = { method: 'PATCH', id: Number(req.params.id), body: req.body };
     Object.assign(task, req.body);
     return res(ctx.status(200), ctx.json(task));
+  }),
+  rest.delete('/api/tasks/:id', (req, res, ctx) => {
+    lastRequest = { method: 'DELETE', id: Number(req.params.id) };
+    mockTasks = mockTasks.filter((task) => task.id !== Number(req.params.id));
+    return res(ctx.status(200), ctx.json({ message: 'Task deleted successfully', id: Number(req.params.id) }));
   })
 );
 
 beforeAll(() => server.listen());
 beforeEach(() => {
   mockTasks = initialTasks.map((task) => ({ ...task }));
+  lastRequest = null;
 });
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
@@ -74,6 +83,10 @@ describe('App Component', () => {
     await user.type(screen.getByPlaceholderText('What needs doing?'), 'Book dentist appointment');
     await user.click(screen.getByRole('button', { name: 'Add task' }));
     expect(await screen.findByText('Book dentist appointment')).toBeInTheDocument();
+    expect(lastRequest).toEqual({
+      method: 'POST',
+      body: { title: 'Book dentist appointment', dueDate: null, priority: 'Medium' },
+    });
   });
 
   test('toggles a task complete', async () => {
@@ -82,6 +95,37 @@ describe('App Component', () => {
     await waitFor(() => expect(screen.getByText('Plan the week')).toBeInTheDocument());
     await user.click(screen.getAllByRole('checkbox')[0]);
     await waitFor(() => expect(screen.getAllByRole('checkbox')[0]).toBeChecked());
+    expect(lastRequest).toEqual({ method: 'PATCH', id: 1, body: { completed: true } });
+  });
+
+  test('edits a task and sends the edited fields', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Plan the week')).toBeInTheDocument());
+    const taskRow = screen.getByText('Plan the week').closest('li');
+    await user.click(taskRow.querySelector('button'));
+    const titleInput = screen.getByPlaceholderText('What needs doing?');
+    await user.clear(titleInput);
+    await user.type(titleInput, 'Plan the whole week');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Plan the whole week')).toBeInTheDocument();
+    expect(lastRequest).toMatchObject({
+      method: 'PATCH',
+      id: 1,
+      body: { title: 'Plan the whole week', dueDate: '2026-08-21', priority: 'High' },
+    });
+  });
+
+  test('requires confirmation before deleting a task', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Plan the week')).toBeInTheDocument());
+    await user.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(lastRequest).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Delete task' }));
+    await waitFor(() => expect(screen.queryByText('Plan the week')).not.toBeInTheDocument());
+    expect(lastRequest).toEqual({ method: 'DELETE', id: 1 });
   });
 
   test('filters tasks by status', async () => {
@@ -102,6 +146,18 @@ describe('App Component', () => {
     );
     render(<App />);
     expect(await screen.findByText('Unable to load tasks')).toBeInTheDocument();
+  });
+
+  test('shows an error when saving a task fails', async () => {
+    server.use(
+      rest.post('/api/tasks', (req, res, ctx) => res(ctx.status(500), ctx.json({ error: 'Save failed' })))
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    await waitFor(() => expect(screen.getByText('Plan the week')).toBeInTheDocument());
+    await user.type(screen.getByPlaceholderText('What needs doing?'), 'Will not save');
+    await user.click(screen.getByRole('button', { name: 'Add task' }));
+    expect(await screen.findByText('Save failed')).toBeInTheDocument();
   });
 
   test('shows an empty state when no tasks match', async () => {

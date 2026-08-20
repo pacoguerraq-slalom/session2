@@ -1,4 +1,5 @@
 const request = require('supertest');
+const Database = require('better-sqlite3');
 const { app, db } = require('../../src/app');
 
 describe('Tasks API', () => {
@@ -7,7 +8,9 @@ describe('Tasks API', () => {
   });
 
   afterAll(() => {
-    db.close();
+    if (db.open) {
+      db.close();
+    }
   });
 
   it('creates and returns a task with defaults', async () => {
@@ -72,9 +75,28 @@ describe('Tasks API', () => {
     expect(invalidDate.status).toBe(400);
     expect(invalidDate.body.error).toBe('Due date must use YYYY-MM-DD format');
 
+    const impossibleDate = await request(app).post('/api/tasks').send({ title: 'Impossible date', dueDate: '2026-99-99' });
+    expect(impossibleDate.status).toBe(400);
+    expect(impossibleDate.body.error).toBe('Due date must use YYYY-MM-DD format');
+
     const missingTask = await request(app).patch('/api/tasks/999999').send({ completed: true });
     expect(missingTask.status).toBe(404);
     expect(missingTask.body.error).toBe('Task not found');
+
+    const invalidFilters = await request(app).get('/api/tasks?status=unknown&priority=Urgent');
+    expect(invalidFilters.status).toBe(400);
+    expect(invalidFilters.body.error).toBe('Status must be completed, incomplete, or all');
+
+    const task = (await request(app).post('/api/tasks').send({ title: 'Validate update' })).body;
+    const invalidTaskUpdate = await request(app)
+      .patch(`/api/tasks/${task.id}`)
+      .send({ completed: 'yes', priority: 'Urgent' });
+    expect(invalidTaskUpdate.status).toBe(400);
+    expect(invalidTaskUpdate.body.error).toBe('Completed must be a boolean');
+
+    const emptyUpdate = await request(app).patch(`/api/tasks/${task.id}`).send({});
+    expect(emptyUpdate.status).toBe(400);
+    expect(emptyUpdate.body.error).toBe('At least one task field is required');
   });
 
   it('deletes a task', async () => {
@@ -84,5 +106,27 @@ describe('Tasks API', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ message: 'Task deleted successfully', id: task.id });
     expect((await request(app).get('/api/tasks')).body).toHaveLength(0);
+  });
+
+  it('keeps task data available after the database connection is reopened', async () => {
+    const task = (await request(app).post('/api/tasks').send({
+      title: 'Survive restart',
+      dueDate: '2026-08-31',
+      priority: 'High',
+    })).body;
+    const databaseFile = db.name;
+
+    expect(databaseFile).not.toBe(':memory:');
+    db.close();
+
+    const reopenedDb = new Database(databaseFile, { readonly: true });
+    const persistedTask = reopenedDb.prepare('SELECT title, due_date, priority FROM tasks WHERE id = ?').get(task.id);
+    reopenedDb.close();
+
+    expect(persistedTask).toEqual({
+      title: 'Survive restart',
+      due_date: '2026-08-31',
+      priority: 'High',
+    });
   });
 });

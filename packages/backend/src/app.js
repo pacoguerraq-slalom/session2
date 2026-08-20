@@ -41,6 +41,17 @@ db.exec(`
 
 const validPriorities = ['High', 'Medium', 'Low'];
 
+const isValidDueDate = (dueDate) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    return false;
+  }
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+  return parsedDate.getUTCFullYear() === year
+    && parsedDate.getUTCMonth() === month - 1
+    && parsedDate.getUTCDate() === day;
+};
+
 const serializeTask = (task) => ({
   ...task,
   completed: Boolean(task.completed),
@@ -67,7 +78,7 @@ const getTaskPayload = (body, { partial = false } = {}) => {
   }
 
   if (!partial || Object.prototype.hasOwnProperty.call(body, 'dueDate')) {
-    if (body.dueDate !== null && body.dueDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(body.dueDate)) {
+    if (body.dueDate !== null && body.dueDate !== undefined && !isValidDueDate(body.dueDate)) {
       return { error: 'Due date must use YYYY-MM-DD format' };
     }
     payload.due_date = body.dueDate || null;
